@@ -48,7 +48,7 @@ class ChallengePhaseSerializer(serializers.ModelSerializer):
         model = ChallengePhase
         fields = ('id', 'name', 'description', 'leaderboard_public', 'start_date',
                   'end_date', 'challenge', 'max_submissions_per_day', 'max_submissions',
-                  'is_public', 'is_active', 'codename',)
+                  'is_public', 'is_active', 'codename', 'test_annotation',)
 
 
 class DatasetSplitSerializer(serializers.ModelSerializer):

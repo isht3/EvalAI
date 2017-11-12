@@ -334,6 +334,7 @@ def challenge_phase_list(request, challenge_pk):
 @permission_classes((permissions.IsAuthenticatedOrReadOnly, HasVerifiedEmail))
 @authentication_classes((ExpiringTokenAuthentication,))
 def challenge_phase_detail(request, challenge_pk, pk):
+# Write API to replace test_annotation file.
     try:
         challenge = Challenge.objects.get(pk=challenge_pk)
     except Challenge.DoesNotExist:
