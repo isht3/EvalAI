@@ -127,6 +127,16 @@
             authenticate: true
         };
 
+        var invitation = {
+            name: "web.invitation",
+            parent: "web",
+            url: "/invitation/:hash/:encoding",
+            controller: 'TeamsCtrl',
+            controllerAs: 'teams',
+            title: 'Invitation',
+            authenticate: true
+        };
+
         var host_analytics = {
             name: "web.host-analytics",
             parent: "web",
@@ -438,6 +448,7 @@
         $stateProvider.state(dashboard);
         $stateProvider.state(host_analytics);
         $stateProvider.state(teams);
+        $stateProvider.state(invitation);
 
         // challenge host teams
         $stateProvider.state(challenge_host_teams);

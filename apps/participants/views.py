@@ -1,4 +1,10 @@
+import cPickle as pickle
+import hashlib 
+import urllib
+import zlib
+
 from django.contrib.auth.models import User
+from django.core.mail import send_mail, BadHeaderError
 
 from rest_framework import permissions, status
 from rest_framework.decorators import (api_view,
@@ -16,14 +22,35 @@ from challenges.models import Challenge
 from hosts.utils import is_user_a_host_of_challenge
 
 from .models import (Participant, ParticipantTeam)
-from .serializers import (InviteParticipantToTeamSerializer,
-                          ParticipantTeamSerializer,
+from .serializers import (ParticipantTeamSerializer,
                           ChallengeParticipantTeam,
                           ChallengeParticipantTeamList,
                           ChallengeParticipantTeamListSerializer,
                           ParticipantTeamDetailSerializer,)
 from .utils import (get_list_of_challenges_for_participant_team,
                     get_list_of_challenges_participated_by_a_user,)
+
+
+HASH_KEY = "michnorts"
+
+def ENCODE_DATA(data):
+    """
+    Turn `data` into a hash and an encoded string, suitable for use with `DECODE_DATA`.
+    """
+    text = zlib.compress(pickle.dumps(data, 0)).encode('base64').replace('\n', '')
+    m = hashlib.md5(HASH_KEY + text).hexdigest()[:12]
+    return m, text
+
+def DECODE_DATA(hash, enc):
+    """
+    The inverse of `HASH_KEY`.
+    """
+    text = urllib.unquote(enc)
+    m = hashlib.md5(HASH_KEY + text).hexdigest()[:12]
+    if m != hash:
+        raise Exception("Bad hash!")
+    data = pickle.loads(zlib.decompress(text.decode('base64')))
+    return data
 
 
 @throttle_classes([UserRateThrottle])
@@ -99,8 +126,7 @@ def participant_team_detail(request, pk):
 @api_view(['POST'])
 @permission_classes((permissions.IsAuthenticated, HasVerifiedEmail))
 @authentication_classes((ExpiringTokenAuthentication,))
-def invite_participant_to_team(request, pk):
-
+def email_invite_participant_to_team(request, pk):
     try:
         participant_team = ParticipantTeam.objects.get(pk=pk)
     except ParticipantTeam.DoesNotExist:
@@ -128,16 +154,52 @@ def invite_participant_to_team(request, pk):
         """
         response_data = {'error': 'Sorry, cannot invite user to the team!'}
         return Response(response_data, status=status.HTTP_406_NOT_ACCEPTABLE)
+    if request.user.email == email:
+        response_data = {'error': 'Sorry, you cannot invite yourself to the team!'}
+        return Response(response_data, status=status.HTTP_406_NOT_ACCEPTABLE)
+    hash_code, enc = ENCODE_DATA([pk, email])
+    encoding = enc.replace("/", "_").strip("=")
+    unique_hash = (hash_code + "/" + encoding)
+    url = request.data["url"].split("team")[0]
+    full_url = url + "invitation/" + unique_hash
+    participant_team = ParticipantTeam.objects.get(pk=pk)
+    team_name = participant_team.team_name
+    body = "You've been invited to join team {}. " \
+           "Click the bottom link to accept the " \
+           "invitation and to participate in challenges. \n{}"
+    message = body.format(team_name, full_url)
+    subject = "You have been invited to join {} team at CloudCV!".format(team_name)    
+    try:
+        send_mail(subject,
+                  message,
+                  "admin@CloudCV.com",
+                  [email],
+                  fail_silently=False,
+                )
+        response_data = {'message': 'The user was sent an invite.'}
+        return Response(response_data, status=status.HTTP_200_OK)
+    except BadHeaderError:
+        response_data = {'error': 'There was some error while sending the invite.'}
+        return Response(response_data, status=status.HTTP_417_EXPECTATION_FAILED)
 
-    serializer = InviteParticipantToTeamSerializer(data=request.data,
-                                                   context={'participant_team': participant_team,
-                                                            'request': request})
-    if serializer.is_valid():
-        serializer.save()
-        response_data = {
-            'message': 'User has been successfully added to the team!'}
+
+@throttle_classes([UserRateThrottle])
+@api_view(['POST'])
+@permission_classes((permissions.IsAuthenticated, HasVerifiedEmail))
+@authentication_classes((ExpiringTokenAuthentication,))
+def invitation_accepted(request, hash_code, encoding):
+    enc = encoding.replace("_", "/") + "="
+    pk, accepted_user_email = DECODE_DATA(hash_code, enc)
+    participant_team = ParticipantTeam.objects.get(pk=int(pk))
+    current_user_email = request.user.email
+    if current_user_email == accepted_user_email:
+        Participant.objects.get_or_create(user=User.objects.get(email=accepted_user_email),
+                                          status=Participant.ACCEPTED,
+                                          team=participant_team)
+        response_data = {'message': 'You have been successfully added to the team!'}
         return Response(response_data, status=status.HTTP_202_ACCEPTED)
-    return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+    response_data = {'error': 'You aren\'t authorized!'}
+    return Response(response_data, status=status.HTTP_401_UNAUTHORIZED)
 
 
 @throttle_classes([UserRateThrottle])
