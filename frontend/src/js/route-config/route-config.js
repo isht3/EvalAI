@@ -127,6 +127,16 @@
             authenticate: true
         };
 
+        var host_invitation = {
+            name: "web.host-invitation",
+            parent: "web",
+            url: "/challenge-host-invitation/:email_hash/:user_enc",
+            controller: 'ChallengeHostTeamsCtrl',
+            controllerAs: 'challengeHostTeams',
+            title: 'Host Invitation',
+            authenticate: true
+        };
+
         var host_analytics = {
             name: "web.host-analytics",
             parent: "web",
@@ -438,6 +448,7 @@
         $stateProvider.state(dashboard);
         $stateProvider.state(host_analytics);
         $stateProvider.state(teams);
+        $stateProvider.state(host_invitation);
 
         // challenge host teams
         $stateProvider.state(challenge_host_teams);

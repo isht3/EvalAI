@@ -7,9 +7,9 @@
         .module('evalai')
         .controller('ChallengeHostTeamsCtrl', ChallengeHostTeamsCtrl);
 
-    ChallengeHostTeamsCtrl.$inject = ['utilities', 'loaderService', '$state', '$http', '$rootScope', '$mdDialog'];
+    ChallengeHostTeamsCtrl.$inject = ['$location', 'utilities', 'loaderService', '$state', '$stateParams', '$http', '$rootScope', '$mdDialog'];
 
-    function ChallengeHostTeamsCtrl(utilities, loaderService, $state, $http, $rootScope, $mdDialog) {
+    function ChallengeHostTeamsCtrl($location, utilities, loaderService, $state, $stateParams, $http, $rootScope, $mdDialog) {
         var vm = this;
         // console.log(vm.teamId)
         var userKey = utilities.getData('userKey');
@@ -325,15 +325,16 @@
                 parameters.url = 'hosts/challenge_host_teams/' + hostTeamId + '/invite';
                 parameters.method = 'POST';
                 parameters.data = {
-                    "email": result
+                    "email": result,
+                    "url": $location.absUrl(),
                 };
                 parameters.token = userKey;
                 parameters.callback = {
                     onSuccess: function() {
                         $rootScope.notify("success", parameters.data.email + " has been invited successfully");
                     },
-                    onError: function() {
-                        $rootScope.notify("error", "Couldn't invite " + parameters.data.email + ". Please try again.");
+                    onError: function(response) {
+                        $rootScope.notify("error", "Couldn't invite. " + response.data.error + " Please try again.");
                     }
                 };
 
@@ -341,6 +342,28 @@
             });
         };
 
+        if ($stateParams.email_hash){
+            var email_hash_value = $stateParams.email_hash;
+            var user_encoding = $stateParams.user_enc;
+            parameters = {};
+            parameters.url = 'hosts/invitation_host_team/' + email_hash_value + '/' + user_encoding;
+            parameters.method = 'POST';
+            parameters.token = userKey;
+            parameters.data = {};
+            parameters.callback = {
+                onSuccess: function(response) {
+                    $location.path("web/dashboard");
+                    $rootScope.notify("success", response.data["message"]);
+                },
+                onError: function(response) {
+                    $location.path("web/dashboard");
+                    var error = response.data['error'];
+                    $rootScope.notify("error", error);
+                }
+            };
+            utilities.sendRequest(parameters);
+
+        }
     vm.storeChallengeHostTeamId = function() {
 
         utilities.storeData('challengeHostTeamId', vm.challengeHostTeamId);

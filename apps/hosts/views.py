@@ -1,3 +1,8 @@
+import base64
+
+from django.contrib.auth.models import User
+from django.core.mail import send_mail, BadHeaderError
+
 from rest_framework import permissions, status
 from rest_framework.decorators import (api_view,
                                        authentication_classes,
@@ -13,8 +18,28 @@ from .models import (ChallengeHost,
                      ChallengeHostTeam,)
 from .serializers import (ChallengeHostSerializer,
                           ChallengeHostTeamSerializer,
-                          InviteHostToTeamSerializer,
                           HostTeamDetailSerializer,)
+
+SECRET_KEY = "thetinggoesskrraapapakakaka"
+
+def ENCODE_DATA(data):
+    """
+    Turn `data` into a hash and an encoded string, suitable for use with `DECODE_DATA`.
+    """
+    encoded = []
+    for i in data:
+        encoded.append(base64.encodestring(i).split("=")[0])
+    return encoded
+
+
+def DECODE_DATA(data):
+    """
+    The inverse of `ENCODE_DATA`.
+    """
+    decoded = []
+    for i in data:
+        decoded.append(base64.decodestring(i+"=="))
+    return decoded
 
 
 @throttle_classes([UserRateThrottle])
@@ -212,20 +237,63 @@ def remove_self_from_challenge_host_team(request, challenge_host_team_pk):
 @api_view(['POST'])
 @permission_classes((permissions.IsAuthenticated, HasVerifiedEmail))
 @authentication_classes((ExpiringTokenAuthentication,))
-def invite_host_to_team(request, pk):
-
+def email_invite_host_to_team(request, pk):
     try:
         challenge_host_team = ChallengeHostTeam.objects.get(pk=pk)
     except ChallengeHostTeam.DoesNotExist:
         response_data = {'error': 'ChallengeHostTeam does not exist'}
         return Response(response_data, status=status.HTTP_406_NOT_ACCEPTABLE)
 
-    serializer = InviteHostToTeamSerializer(data=request.data,
-                                            context={'challenge_host_team': challenge_host_team,
-                                                     'request': request})
-    if serializer.is_valid():
-        serializer.save()
-        response_data = {
-            'message': 'User has been added successfully to the host team'}
+    email = request.data.get('email')
+
+    try:
+        user = User.objects.get(email=email)
+    except User.DoesNotExist:
+        response_data = {'error': 'User does not exist with this email address!'}
+        return Response(response_data, status=status.HTTP_406_NOT_ACCEPTABLE)
+
+    if email == request.user.email:
+        response_data = {'error': 'A host cannot invite himself'}
+        return Response(response_data, status=status.HTTP_406_NOT_ACCEPTABLE)
+
+    team_hash, email_hash = ENCODE_DATA([str(pk), email])
+    unique_hash = (team_hash + "/" + email_hash)
+    url = request.data['url'].split("team")[0]
+    full_url = url + "invitation/" + unique_hash
+    team_name = challenge_host_team.team_name
+    body = "You've been invited to join the host team {}. " \
+           "Click the bottom link to accept the " \
+           "invitation and to participate in challenges. \n{}"
+    message = body.format(team_name, full_url)
+    subject = "You have been invited to join the {} host team at CloudCV!".format(team_name)
+    try:
+        send_mail(subject,
+                  message,
+                  "admin@CloudCV.com",
+                  [email],
+                  fail_silently=False,)
+        response_message = "{} has been invited to join the host team {}".format(email, team_name)
+        response_data = {'message': response_message}
         return Response(response_data, status=status.HTTP_202_ACCEPTED)
-    return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+    except BadHeaderError:
+        response_data = {'error': 'There was some error while sending the invite.'}
+        return Response(response_data, status=status.HTTP_417_EXPECTATION_FAILED)
+
+
+@throttle_classes([UserRateThrottle])
+@api_view(['POST'])
+@permission_classes((permissions.IsAuthenticated, HasVerifiedEmail))
+@authentication_classes((ExpiringTokenAuthentication,))
+def invitation_accepted(request, team_hash, email_hash):
+    pk, accepted_user_email = DECODE_DATA([team_hash, email_hash])
+    current_user_email = request.user.email
+    challenge_host_team = ChallengeHostTeam.objects.get(pk=pk)
+    if current_user_email == accepted_user_email:
+        ChallengeHost.objects.get_or_create(user=User.objects.get(email=accepted_user_email),
+                                                           status=ChallengeHost.ACCEPTED,
+                                                           team_name=challenge_host_team,
+                                                           permissions=ChallengeHost.WRITE)
+        response_data = {'message': 'You have been successfully added to the host team!'}
+        return Response(response_data, status=status.HTTP_202_ACCEPTED)
+    response_data = {'error': 'You aren\'t authorized!'}
+    return Response(response_data, status=status.HTTP_401_UNAUTHORIZED)
