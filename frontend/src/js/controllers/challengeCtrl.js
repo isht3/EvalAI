@@ -33,6 +33,7 @@
         vm.stopLeaderboard = function() {};
         vm.stopFetchingSubmissions = function() {};
         vm.currentDate = null;
+        vm.publishVariable = false;
 
 
         // loader for existing teams
@@ -1533,6 +1534,58 @@
                 utilities.sendRequest(parameters);
                 $mdDialog.hide();
             }
+        };
+
+        vm.challengePublish = function(ev) {
+            ev.stopPropagation();
+            vm.publishVariable = vm.page.published;
+            // Appending dialog to document.body 
+            var confirm = $mdDialog.confirm()
+                          .title('Make this challenge public?')
+                          .textContent('Participants will be able to see and participate in this challenge.')
+                          .ariaLabel('')
+                          .targetEvent(ev)
+                          .ok('I\'m sure')
+                          .cancel('No.');
+
+            $mdDialog.show(confirm).then(function() {        
+                console.log(vm.page);
+                var challengeHostList = utilities.getData("challengeCreator");
+                for (var challenge in challengeHostList) {
+                    if (challenge == vm.challengeId) {
+                        vm.challengeHostId = challengeHostList[challenge];
+                        break;
+                    }
+                }
+                console.log(vm.challengeHostId);
+                parameters.url = "challenges/challenge_host_team/" + vm.challengeHostId + "/challenge/" + vm.page.id;
+
+                // console.log(parameters.url);
+                // parameters.method = 'PATCH';
+                // parameters.data = {
+                //     "description": vm.page.description
+
+                // };
+                // parameters.callback = {
+                //     onSuccess: function(response) {
+                //         var status = response.status;
+                //         if (status === 200) {
+                //             $mdDialog.hide();
+                //             $rootScope.notify("success", "The description is successfully updated!");
+                //         }
+                //     },
+                //     onError: function(response) {
+                //         $mdDialog.hide();
+                //         vm.page.description = vm.tempDesc;
+                //         var error = response.data;
+                //         $rootScope.notify("error", error);
+                //     }
+                // };
+
+                utilities.sendRequest(parameters);
+            }, function() {
+            // Nope
+            });
         };
 
         $scope.$on('$destroy', function() {
