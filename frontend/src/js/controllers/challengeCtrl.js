@@ -66,7 +66,7 @@
                 var details = response.data;
                 vm.page = details;
                 vm.isActive = details.is_active;
-
+                vm.publishVariable = vm.page.published;
 
                 if (vm.page.image === null) {
                     vm.page.image = "dist/images/logo.png";
@@ -1538,49 +1538,42 @@
 
         vm.challengePublish = function(ev) {
             ev.stopPropagation();
-            vm.publishVariable = vm.page.published;
+            vm.publishTitle = "";
+            vm.publishDesc = "";
+            if (vm.publishVariable)
+                vm.publishTitle = "private";
+            else
+                vm.publishTitle = "public";
             // Appending dialog to document.body 
             var confirm = $mdDialog.confirm()
-                          .title('Make this challenge public?')
-                          .textContent('Participants will be able to see and participate in this challenge.')
+                          .title('Make this challenge ' + vm.publishTitle + '?')
                           .ariaLabel('')
                           .targetEvent(ev)
                           .ok('I\'m sure')
                           .cancel('No.');
 
             $mdDialog.show(confirm).then(function() {        
-                console.log(vm.page);
-                var challengeHostList = utilities.getData("challengeCreator");
-                for (var challenge in challengeHostList) {
-                    if (challenge == vm.challengeId) {
-                        vm.challengeHostId = challengeHostList[challenge];
-                        break;
+                parameters.url = "challenges/challenge_host_team/" + vm.page.creator.id + "/challenge/" + vm.page.id;
+                parameters.method = 'PATCH';
+                parameters.data = {
+                    "published": !vm.publishVariable,
+                };
+                vm.publishVariable = !vm.publishVariable;
+                parameters.callback = {
+                    onSuccess: function(response) {
+                        var status = response.status;
+                        if (status === 200) {
+                            $mdDialog.hide();
+                            $rootScope.notify("success", "The challenge was successfully made " + vm.publishTitle);
+                        }
+                    },
+                    onError: function(response) {
+                        $mdDialog.hide();
+                        vm.page.description = vm.tempDesc;
+                        var error = response.data;
+                        $rootScope.notify("error", error);
                     }
-                }
-                console.log(vm.challengeHostId);
-                parameters.url = "challenges/challenge_host_team/" + vm.challengeHostId + "/challenge/" + vm.page.id;
-
-                // console.log(parameters.url);
-                // parameters.method = 'PATCH';
-                // parameters.data = {
-                //     "description": vm.page.description
-
-                // };
-                // parameters.callback = {
-                //     onSuccess: function(response) {
-                //         var status = response.status;
-                //         if (status === 200) {
-                //             $mdDialog.hide();
-                //             $rootScope.notify("success", "The description is successfully updated!");
-                //         }
-                //     },
-                //     onError: function(response) {
-                //         $mdDialog.hide();
-                //         vm.page.description = vm.tempDesc;
-                //         var error = response.data;
-                //         $rootScope.notify("error", error);
-                //     }
-                // };
+                };
 
                 utilities.sendRequest(parameters);
             }, function() {

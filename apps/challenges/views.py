@@ -10,6 +10,7 @@ import zipfile
 
 from os.path import basename, isfile, join
 
+from django.contrib.auth.models import User
 from django.core.files.base import ContentFile
 from django.db import transaction
 from django.http import HttpResponse
@@ -737,6 +738,24 @@ def create_challenge_using_zip_file(request, challenge_host_team_pk):
         if zip_config:
             zip_config.challenge = challenge
             zip_config.save()
+
+            try:
+                emails = challenge_host_team.get_all_challenge_host_email()
+                participant_host_team = ParticipantTeam(
+                                            team_name=challenge_host_team.team_name,
+                                            created_by=challenge_host_team.created_by,)
+                participant_host_team.save()
+                for email in emails:
+                    user = User.objects.get(email=email)
+                    host = Participant(
+                                user=user,
+                                status=Participant.ACCEPTED,
+                                team=participant_host_team,
+                        )
+                challenge.participant_teams.add(participant_host_team)
+            except Exception as e:
+                print e
+
             response_data = {'success': 'Challenge {} has been created successfully and'
                                         ' sent for review to EvalAI Admin.'.format(challenge.title)}
             return Response(response_data, status=status.HTTP_201_CREATED)
