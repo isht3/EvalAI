@@ -1544,7 +1544,7 @@
                 vm.publishTitle = "private";
             else
                 vm.publishTitle = "public";
-            // Appending dialog to document.body 
+
             var confirm = $mdDialog.confirm()
                           .title('Make this challenge ' + vm.publishTitle + '?')
                           .ariaLabel('')
@@ -1552,7 +1552,7 @@
                           .ok('I\'m sure')
                           .cancel('No.');
 
-            $mdDialog.show(confirm).then(function() {        
+            $mdDialog.show(confirm).then(function() {
                 parameters.url = "challenges/challenge_host_team/" + vm.page.creator.id + "/challenge/" + vm.page.id;
                 parameters.method = 'PATCH';
                 parameters.data = {

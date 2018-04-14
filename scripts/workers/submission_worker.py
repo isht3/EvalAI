@@ -271,6 +271,16 @@ def run_submission(challenge_id, challenge_phase, submission, user_annotation_fi
 
     # Use the submission serializer to send relevant data to evaluation script
     # so that challenge hosts can use data for webhooks or any other service.
+
+    # If submission is from the Challenge Host ignore the submission.
+    challenge = Challenge.objects.get(id=challenge_id)
+    challenge_creator_id = challenge.creator.created_by.id
+    submission_creator_id = submission.participant_team.created_by.id
+
+    if (challenge_creator_id == submission_creator_id) and challenge.published:
+        logger.info("[x] Challenge host submission, ignored.")
+        return
+
     submission_serializer = SubmissionSerializer(submission)
 
     submission_output = None

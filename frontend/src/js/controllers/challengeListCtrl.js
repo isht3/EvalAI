@@ -188,7 +188,7 @@
                 }
 
             },
-            onError: function() {   
+            onError: function() {
                 utilities.hideLoader();
             }
         };
